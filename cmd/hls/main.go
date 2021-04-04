@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"hls"
+	"github.com/wmw9/get-twitch-m3u8"
 	"os"
 )
 
