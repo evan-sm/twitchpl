@@ -1,4 +1,4 @@
-package hls
+package get-twitch-m3u8
 
 import (
 	"bytes"
