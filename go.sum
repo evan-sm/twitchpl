@@ -1,2 +1,4 @@
 github.com/grafov/m3u8 v0.11.1 h1:igZ7EBIB2IAsPPazKwRKdbhxcoBKO3lO1UY57PZDeNA=
 github.com/grafov/m3u8 v0.11.1/go.mod h1:nqzOkfBiZJENr52zTVd/Dcl03yzphIMbJqkXGu+u080=
+github.com/wmw9/get-twitch-m3u8 v0.0.0-20210404210819-bd16565a1175 h1:MhrR1A7zwVLlu7rbic5y21PF/3Bkq0ekISQgskYCXBs=
+github.com/wmw9/get-twitch-m3u8 v0.0.0-20210404210819-bd16565a1175/go.mod h1:jKv94//fHx5qL0noWIMNvqq/GDOCf6eMs7DPsLJAZp4=

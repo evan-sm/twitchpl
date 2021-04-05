@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/wmw9/get-twitch-m3u8"
+	hls "github.com/wmw9/get-twitch-m3u8"
 )
 
 func main() {
