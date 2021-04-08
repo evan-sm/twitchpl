@@ -10,6 +10,7 @@ import (
 const VERSION = "0.1"
 
 func main() {
+	mpl := flag.Bool("m", false, "Show master playlist instead")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -18,6 +19,12 @@ func main() {
 		os.Stderr.Write([]byte("Usage: hls sodapoppin\n"))
 		flag.PrintDefaults()
 		os.Exit(2)
+	} else if *mpl {
+		hls, err := hls.GetMPL(flag.Arg(0))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(hls)
 	} else {
 		hls, err := hls.Get(flag.Arg(0))
 		if err != nil {
@@ -25,5 +32,4 @@ func main() {
 		}
 		fmt.Println(hls)
 	}
-
 }

@@ -81,6 +81,37 @@ func Get(channelName string) (string, error) {
 	return variant, err
 }
 
+func GetMPL(channelName string) (string, error) {
+
+	p := &PlaylistManager{
+		ChannelName: channelName,
+	}
+
+	p.getToken()
+	mpl, err := p.getMasterPlaylist()
+
+	return fmt.Sprintf("%v", mpl), err
+}
+
+func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
+	base_url, _ := url.Parse(fmt.Sprintf(USHER_API_MASK, p.ChannelName))
+
+	v := url.Values{}
+	v.Add("allow_source", "true")
+	v.Add("fast_bread", "true")
+	v.Add("p", "1234567890")
+	v.Add("player_backend", "mediaplayer")
+	v.Add("sig", p.StreamPlaybackAccessToken.Signature)
+	v.Add("supported_codecs", "vp09,avc1")
+	v.Add("token", p.StreamPlaybackAccessToken.Value)
+	v.Add("cdm", "wv")
+	v.Add("player_version", "1.2.0")
+
+	base_url.RawQuery = v.Encode()
+
+	return base_url, nil
+}
+
 func (p *PlaylistManager) getVariant() (string, error) {
 	base_url, _ := url.Parse(fmt.Sprintf(USHER_API_MASK, p.ChannelName))
 
