@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	//"log"
+	//	"log"
 	"net/http"
 	"net/url"
 
@@ -77,6 +77,7 @@ func Get(channelName string) (string, error) {
 
 	p.getToken()
 	variant, err := p.getVariant()
+	//	log.Printf("variant: %v", variant)
 
 	return variant, err
 }
@@ -127,10 +128,10 @@ func (p *PlaylistManager) getVariant() (string, error) {
 	v.Add("player_version", "1.2.0")
 
 	base_url.RawQuery = v.Encode()
-	//pp.Printf("base_url: %v\n", base_url.String())
+	//	log.Printf("base_url: %v\n", base_url.String())
 
 	req, _ := http.NewRequest("GET", base_url.String(), nil)
-	req.Header.Add("Client-ID", "kimne78kx3ncx6brgo4mv6wki5h1ko")
+	//	req.Header.Add("Client-ID", "kimne78kx3ncx6brgo4mv6wki5h1ko")
 	resp, err := http.DefaultClient.Do(req)
 	//resp, err := http.Get(base_url.String())
 	if err != nil {
@@ -138,7 +139,7 @@ func (p *PlaylistManager) getVariant() (string, error) {
 	}
 
 	if resp != nil && resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("got a response from usher: %s", resp.Status)
+		return "", fmt.Errorf("http.StatusOK failed: got a response from usher: %s", resp.Status)
 	}
 
 	playlist, _, _ := m3u8.DecodeFrom(resp.Body, true)

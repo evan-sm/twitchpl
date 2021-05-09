@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const VERSION = "0.1"
+const VERSION = "0.2"
 
 func main() {
 	mpl := flag.Bool("m", false, "Show master playlist instead")
