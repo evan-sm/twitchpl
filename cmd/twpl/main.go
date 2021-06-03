@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	hls "github.com/wmw9/get-twitch-m3u8"
 	"os"
+
+	twpl "github.com/wmw9/get-twitch-m3u8"
 )
 
 const VERSION = "0.2"
@@ -20,16 +21,16 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(2)
 	} else if *mpl {
-		hls, err := hls.GetMPL(flag.Arg(0))
+		pl, err := twpl.GetMPL(flag.Arg(0))
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(hls)
+		fmt.Println(pl)
 	} else {
-		hls, err := hls.Get(flag.Arg(0))
+		pl, err := twpl.Get(flag.Arg(0))
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(hls)
+		fmt.Println(pl)
 	}
 }
