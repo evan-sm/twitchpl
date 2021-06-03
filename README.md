@@ -9,8 +9,8 @@ Gets the direct .m3u8 HLS twitch playlist URL
 Install CLI binary using Go
 
 ```bash
-$ GO111MODULE=auto go get -u github.com/wMw9/get-twitch-m3u8/cmd/hls
-$ hls sodapoppin
+$ go install github.com/wmw9/get-twitch-m3u8/cmd/twpl
+$ twpl sodapoppin
 https://video-weaver.hel01.hls.ttvnw.net/v1/playlist/CocEr.....mggc.m3u8
 ```
 
@@ -20,15 +20,14 @@ Or use in your project:
 package main
 
 import (
-	"github.com/wmw9/get-twitch-m3u8"
+	twpl "github.com/wmw9/get-twitch-m3u8"
 )
 
 func main() {
-	hls, err := hls.Get("asmongold")
+	pl, err := twpl.Get("asmongold")
 	if err != nil {
 		panic(err)
 	}
-	println(hls)
 }
 
 ```
