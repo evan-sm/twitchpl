@@ -23,30 +23,30 @@ import (
 )
 
 func main() {
-	pl, err := twitchpl.Get("asmongold")
-	if err != nil {
-		panic(err)
-	}
+    pl, err := twitchpl.Get("asmongold")
+    if err != nil {
+    panic(err)
+    }
 
-	url, err := pl.Best()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Best m3u8:", url)
+    url, err := pl.Best()
+    if err != nil {
+    panic(err)
+    }
+    
+    fmt.Println("Best m3u8:", url)
 
     pl, err = twitchpl.Get(flag.Arg(0)).Quality("best")
     if err != nil {
         panic(err)
     }
-	fmt.Println("Best m3u8:", url)
+    fmt.Println("Best m3u8:", url)
 
-	mpl, err = twitchpl.GetMPL(args[0])
-	if err != nil {
-		panic(err)
-	}
+    mpl, err = twitchpl.GetMPL(args[0])
+    if err != nil {
+        panic(err)
+    }
 
-	fmt.Println("Master playlist:", mpl)
+    fmt.Println("Master playlist:", mpl)
 }
 
 ```
