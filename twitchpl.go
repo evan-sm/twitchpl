@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/grafov/m3u8"
-	"github.com/k0kubun/pp"
 )
 
 const (
@@ -53,7 +52,6 @@ func (p *PlaylistManager) Quality(q string) (string, error) {
 	if len(*p.Variant) == 0 {
 		return "", errors.New("there's no stream quality to choose")
 	}
-	pp.Println(p.Variant)
 	switch q {
 	case "best":
 		return (*p.Variant)[0].URL, nil
