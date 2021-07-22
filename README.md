@@ -1,33 +1,64 @@
-# get-twitch-m3u8
+# twitchpl - Get direct Twitch m3u8 playlist ▶️🎵
+ > I know you were looking for a small lib to do that "dirty" job for you
 
-<img align="center" width="200" src="https://user-images.githubusercontent.com/4693125/113519851-8b9f3800-9597-11eb-90c4-ca41be0f848d.png" alt="gopher">
+# Installation 🔨
+```go install github.com/wmw9/twitchpl/cmd/twitchpl@latest``` <br>
 
-Gets the direct .m3u8 HLS twitch playlist URL
+# Features
+- ✅  Avoid Ads
+- 🚀  Choose stream quality: best, worst or audio_only
 
-## Usage
+# Usage: CLI 🔬
+```twitchpl asmongold``` <br>
 
-Install CLI binary using Go
-
-```bash
-$ go install github.com/wmw9/get-twitch-m3u8/cmd/twpl@latest
-$ twpl sodapoppin
-https://video-weaver.hel01.hls.ttvnw.net/v1/playlist/CocEr.....mggc.m3u8
-```
-
-Or use in your project:
-
+# Use in your project 🔬
 ```golang
 package main
 
 import (
-	twpl "github.com/wmw9/get-twitch-m3u8"
+	"fmt"
+	"os"
+
+	"github.com/wmw9/twitchpl"
 )
 
 func main() {
-	pl, err := twpl.Get("asmongold")
+	pl, err := twitchpl.Get("asmongold")
 	if err != nil {
 		panic(err)
 	}
+
+	url, err := pl.Best()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Best m3u8:", url)
+
+    pl, err = twitchpl.Get(flag.Arg(0)).Quality("best")
+    if err != nil {
+        panic(err)
+    }
+	fmt.Println("Best m3u8:", url)
+
+	mpl, err = twitchpl.GetMPL(args[0])
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Master playlist:", mpl)
 }
 
 ```
+
+# What I Learned 🧠
+- m3u8 parsing
+- GraphQL requests
+- Golangs basics (OOP, HTTP requests, nested structs, error handling)
+
+# ToDo
+- [ ] Detect if channel doesn't exists
+- [ ] Ignore restreams
+
+# License 📑
+(c) 2021 Ivan Smyshlyaev. [MIT License](https://tldrlegal.com/license/mit-license)

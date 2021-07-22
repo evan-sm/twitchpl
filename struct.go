@@ -1,10 +1,11 @@
-package twpl
+package twitchpl
 
 type PlaylistManager struct {
-	ChannelName    string
-	DesiredVariant string
-
+	ChannelName               string
+	DesiredVariant            string
 	StreamPlaybackAccessToken *StreamPlaybackAccessToken
+	Variant                   *[]QualityVariant
+	Errors                    []error
 }
 
 type GraphQLQuery struct {
@@ -32,4 +33,11 @@ type PlaybackAccessTokenGraphQLData struct {
 type StreamPlaybackAccessToken struct {
 	Signature string `json:"signature"`
 	Value     string `json:"value"`
+}
+
+type QualityVariant struct {
+	Name       string
+	Resolution string
+	FrameRate  float64
+	URL        string
 }
