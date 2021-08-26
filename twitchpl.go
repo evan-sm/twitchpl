@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/grafov/m3u8"
 )
@@ -18,7 +19,12 @@ const (
 )
 
 var (
-	Client *http.Client = http.DefaultClient
+	//Client *http.Client = http.DefaultClient
+	Client = &http.Client{Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second},
+	}
 )
 
 func NewPlaybackAccessTokenQuery(login string) GraphQLQuery {
