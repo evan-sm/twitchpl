@@ -198,7 +198,7 @@ func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 		p.Errors = append(p.Errors, err)
 		return p, fmt.Errorf("failed to make GET request: %v\n", err)
 	}
-	//res.Body.Close()
+	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		if res.StatusCode != http.StatusNotFound {
