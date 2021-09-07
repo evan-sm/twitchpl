@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafov/m3u8"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,12 +20,13 @@ const (
 )
 
 var (
-	//Client *http.Client = http.DefaultClient
 	Client = &http.Client{Timeout: 2 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 100,
 			IdleConnTimeout:     90 * time.Second},
 	}
+	USER_AGENT      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0"
+	backoffSchedule = []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second}
 )
 
 func NewPlaybackAccessTokenQuery(login string) GraphQLQuery {
@@ -199,7 +201,7 @@ func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 		return p, fmt.Errorf("failed to create GET request: %v\n", err)
 	}
 
-	res, err := Client.Do(req)
+	res, err := p.doRequestWithRetries(req)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
 		return p, fmt.Errorf("failed to make GET request: %v\n", err)
@@ -261,18 +263,39 @@ func (p *PlaylistManager) getToken() error {
 	}
 
 	req.Header.Add("Client-ID", CLIENT_ID)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("non-200 code returned for graphql request for PlaybackAccessToken: %s", resp.Status)
+	res, err := p.doRequestWithRetries(req)
+	if err != nil {
+		return fmt.Errorf("non-200 code returned for graphql request for PlaybackAccessToken: %s", res.Status)
 	}
-	defer resp.Body.Close()
+	defer res.Body.Close()
 
 	var graphResponse PlaybackAccessTokenGraphQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&graphResponse); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&graphResponse); err != nil {
 		return err
 	}
-	resp.Body.Close()
 	p.StreamPlaybackAccessToken = &graphResponse.Data.StreamPlaybackAccessToken
 
 	return nil
+}
+
+// doRequestWithRetries makes request, if failed it retries 3 more times with backoff timer
+func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Response, error) {
+	var err error
+	var res *http.Response
+
+	req.Header.Set("User-Agent", USER_AGENT)
+
+	for _, backoff := range backoffSchedule {
+		res, err = Client.Do(req)
+		if err == nil {
+			break
+		}
+		log.Errorf("Request error: '%v' Retrying in %v", err, backoff)
+		time.Sleep(backoff)
+
+	}
+	if err != nil {
+		return res, err
+	}
+	return res, err
 }
