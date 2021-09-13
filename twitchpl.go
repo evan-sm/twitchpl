@@ -287,6 +287,7 @@ func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Respons
 
 	for _, backoff := range backoffSchedule {
 		res, err = Client.Do(req)
+		defer res.Body.Close()
 		if err == nil {
 			break
 		}
