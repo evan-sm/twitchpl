@@ -257,13 +257,7 @@ func (p *PlaylistManager) getToken() error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", u.String(), buf)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Add("Client-ID", CLIENT_ID)
-	res, err := p.doRequestWithRetries(req)
+	res, err := p.doPostRequestWithRetries(u.String(), *buf)
 	if err != nil {
 		return fmt.Errorf("non-200 code returned for graphql request for PlaybackAccessToken: %s", res.Status)
 	}
@@ -283,11 +277,35 @@ func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Respons
 	var err error
 	var res *http.Response
 
-	req.Header.Set("User-Agent", USER_AGENT)
-
 	for _, backoff := range backoffSchedule {
 		res, err = Client.Do(req)
-		defer res.Body.Close()
+		if err == nil {
+			break
+		}
+		log.Errorf("Request error: '%v' Retrying in %v", err, backoff)
+		time.Sleep(backoff)
+
+	}
+	if err != nil {
+		return res, err
+	}
+	return res, err
+}
+
+// doPostRequestWithRetries makes POST request, if failed it retries 3 more times with backoff timer
+func (p *PlaylistManager) doPostRequestWithRetries(url string, buf bytes.Buffer) (*http.Response, error) {
+	var err error
+	var res *http.Response
+
+	for _, backoff := range backoffSchedule {
+		req, err := http.NewRequest("POST", url, &buf)
+		if err != nil {
+			return res, err
+		}
+		req.Header.Add("Client-ID", CLIENT_ID)
+		req.Header.Set("User-Agent", USER_AGENT)
+
+		res, err = Client.Do(req)
 		if err == nil {
 			break
 		}
