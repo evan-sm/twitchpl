@@ -246,6 +246,7 @@ func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 }
 
 func (p *PlaylistManager) getToken() error {
+	defer recoverFromPanic()
 	u, err := url.Parse(GRAPHQL_URL)
 	if err != nil {
 		return err
@@ -307,7 +308,7 @@ func (p *PlaylistManager) doPostRequestWithRetries(url string, buf bytes.Buffer)
 
 		res, err = Client.Do(req)
 		if err == nil {
-			break
+			return res, err
 		}
 		log.Errorf("Request error: '%v' Retrying in %v", err, backoff)
 		time.Sleep(backoff)
@@ -317,4 +318,10 @@ func (p *PlaylistManager) doPostRequestWithRetries(url string, buf bytes.Buffer)
 		return res, err
 	}
 	return res, err
+}
+
+func recoverFromPanic() {
+	if r := recover(); r != nil {
+		fmt.Println("recovered from ", r)
+	}
 }
