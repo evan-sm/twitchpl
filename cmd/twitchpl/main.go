@@ -19,17 +19,9 @@ func main() {
 		panic(err)
 	}
 
-	url, err := pl.Best()
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println(pl.AsJSON()) // Best quality by default
+	//	fmt.Println(pl.Worst().AsJSON())
+	//	fmt.Println(pl.Best().AsURL())
+	//	fmt.Println(pl.AsText())
 
-	fmt.Println(url)
-
-	url, err = pl.BestJSON()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(url)
 }

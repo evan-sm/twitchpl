@@ -29,22 +29,28 @@ var (
 	backoffSchedule = []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second}
 )
 
-func NewPlaybackAccessTokenQuery(login string) GraphQLQuery {
-	return GraphQLQuery{
-		OperationName: "PlaybackAccessToken_Template",
-		Query:         `query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {  streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) {    value    signature    __typename  }  videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) {    value    signature    __typename  }}`,
-		Variables: GraphQLVariables{
-			IsLive:     true,
-			Login:      login,
-			PlayerType: "site",
-		},
-	}
+type PlaylistManager struct {
+	ChannelName               string
+	Quality                   string
+	Resolution                string
+	DesiredVariant            string
+	StreamPlaybackAccessToken *StreamPlaybackAccessToken
+	Variant                   *[]QualityVariant
+	Errors                    []error
 }
 
-func Get(channelName string) (*PlaylistManager, error) {
+type QualityVariant struct {
+	Name       string
+	Resolution string
+	FrameRate  float64
+	URL        string
+}
+
+func Get(channel string) (*PlaylistManager, error) {
 
 	p := &PlaylistManager{
-		ChannelName: channelName,
+		ChannelName: channel,
+		Quality:     "best", // Best by default
 	}
 
 	p.getToken()
@@ -56,88 +62,72 @@ func Get(channelName string) (*PlaylistManager, error) {
 	return pl, nil
 }
 
-func (p *PlaylistManager) Quality(q string) (string, error) {
-	if len(*p.Variant) == 0 {
-		return "", errors.New("there's no stream quality to choose")
-	}
-	switch q {
+func (p *PlaylistManager) quality() string {
+	/*
+		if len(*p.Variant) == 0 {
+			return "", errors.New("there's no stream quality to choose")
+		}
+	*/
+	switch p.Quality {
 	case "best":
-		return (*p.Variant)[0].URL, nil
-	case "1080p":
-		for _, variant := range *p.Variant {
-			if variant.Resolution == "1920x1080" {
-				return variant.URL, nil
-			}
-		}
-		return (*p.Variant)[0].URL, nil
-	case "720p":
-		for _, variant := range *p.Variant {
-			if variant.Resolution == "1280x720" {
-				return variant.URL, nil
-			}
-		}
-		return (*p.Variant)[0].URL, nil
-	case "480p":
-		for _, variant := range *p.Variant {
-			if variant.Resolution == "852x480" {
-				return variant.URL, nil
-			}
-		}
-		return (*p.Variant)[0].URL, nil
-	case "360p":
-		for _, variant := range *p.Variant {
-			if variant.Resolution == "640x360" {
-				return variant.URL, nil
-			}
-		}
-		return (*p.Variant)[0].URL, nil
-	case "160p":
-		for _, variant := range *p.Variant {
-			if variant.Resolution == "284x160" {
-				return variant.URL, nil
-			}
-		}
-		return (*p.Variant)[0].URL, nil
+		return (*p.Variant)[0].URL
+	case "worst":
+		return (*p.Variant)[len(*p.Variant)-2].URL
 	case "audio":
 		for _, variant := range *p.Variant {
 			if variant.Name == "audio_only" {
-				return variant.URL, nil
+				return variant.URL
 			}
 		}
-	case "worst":
-		return (*p.Variant)[len(*p.Variant)-2].URL, nil
 	default:
-		return (*p.Variant)[0].URL, nil
+		return (*p.Variant)[0].URL
 	}
-	return "", errors.New("failed to choose quality")
+	return ""
 }
 
-func (p *PlaylistManager) Best() (string, error) {
-	if len(*p.Variant) == 0 {
-		return "", errors.New("there's no stream quality to choose")
-	}
-	return (*p.Variant)[0].URL, nil
+func (p *PlaylistManager) AsURL() string {
+	return p.quality()
 }
 
-func (p *PlaylistManager) BestJSON() (string, error) {
-	if len(*p.Variant) == 0 {
-		return "", errors.New("there's no stream quality to choose")
-	}
+func (p *PlaylistManager) AsJSON() string {
 	js := struct {
-		Channel string `json:"channel"`
-		URL     string `json:"url"`
+		Channel    string `json:"channel"`
+		Quality    string `json:"quality"`
+		Resolution string `json:"resolution"`
+		URL        string `json:"url"`
 	}{
 		Channel: p.ChannelName,
-		URL:     (*p.Variant)[0].URL,
+		Quality: p.Quality,
+		URL:     p.quality(),
 	}
 
-	bs, err := json.Marshal(&js)
+	bs, err := json.MarshalIndent(&js, "", "	")
 	if err != nil {
-		return "", errors.New("couldn't marshal JSON")
+		log.Errorf("couldn't marshal JSON: '%v'", err)
 	}
-	return string(bs), nil
+	return string(bs)
 }
 
+func (p *PlaylistManager) AsText() string {
+	return fmt.Sprintf("Channel: %v \nQuality: %v \nResolution: %v \nURL: %v", p.ChannelName, p.Quality, p.Resolution, p.quality())
+}
+
+func (p *PlaylistManager) Best() *PlaylistManager {
+	p.Quality = "best"
+	return p
+}
+
+func (p *PlaylistManager) Worst() *PlaylistManager {
+	p.Quality = "worst"
+	return p
+}
+
+func (p *PlaylistManager) Audio() *PlaylistManager {
+	p.Quality = "audio"
+	return p
+}
+
+/*
 func (p *PlaylistManager) Worst() (string, error) {
 	if len(*p.Variant) == 0 {
 		return "", errors.New("there's no stream quality to choose")
@@ -156,11 +146,11 @@ func (p *PlaylistManager) Audio() (string, error) {
 	}
 	return (*p.Variant)[0].URL, errors.New("failed to find audio_only track")
 }
-
-func GetMPL(channelName string) (string, error) {
+*/
+func GetMPL(channel string) (string, error) {
 
 	p := &PlaylistManager{
-		ChannelName: channelName,
+		ChannelName: channel,
 	}
 
 	p.getToken()
