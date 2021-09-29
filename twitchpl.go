@@ -119,6 +119,25 @@ func (p *PlaylistManager) Best() (string, error) {
 	return (*p.Variant)[0].URL, nil
 }
 
+func (p *PlaylistManager) BestJSON() (string, error) {
+	if len(*p.Variant) == 0 {
+		return "", errors.New("there's no stream quality to choose")
+	}
+	js := struct {
+		Channel string `json:"channel"`
+		URL     string `json:"url"`
+	}{
+		Channel: p.ChannelName,
+		URL:     (*p.Variant)[0].URL,
+	}
+
+	bs, err := json.Marshal(&js)
+	if err != nil {
+		return "", errors.New("couldn't marshal JSON")
+	}
+	return string(bs), nil
+}
+
 func (p *PlaylistManager) Worst() (string, error) {
 	if len(*p.Variant) == 0 {
 		return "", errors.New("there's no stream quality to choose")

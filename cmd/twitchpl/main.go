@@ -25,4 +25,11 @@ func main() {
 	}
 
 	fmt.Println(url)
+
+	url, err = pl.BestJSON()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(url)
 }
