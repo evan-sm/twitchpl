@@ -37,6 +37,15 @@ type PlaylistManager struct {
 	StreamPlaybackAccessToken *StreamPlaybackAccessToken
 	Variant                   *[]QualityVariant
 	Errors                    []error
+	Outputter                 *Outputter
+}
+
+type Outputter struct {
+	Channel    string  `json:"channel"`
+	Quality    string  `json:"quality"`
+	Resolution string  `json:"resolution"`
+	FrameRate  float64 `json:"frame_rate"`
+	URL        string  `json:"url"`
 }
 
 type QualityVariant struct {
@@ -47,13 +56,13 @@ type QualityVariant struct {
 }
 
 func Get(channel string) (*PlaylistManager, error) {
+	p := newPlaylistManager(channel)
 
-	p := &PlaylistManager{
-		ChannelName: channel,
-		Quality:     "best", // Best by default
+	err := p.getToken()
+	if err != nil {
+		return &PlaylistManager{}, err
 	}
 
-	p.getToken()
 	pl, err := p.getPlaylist()
 	if err != nil {
 		return pl, err
@@ -62,54 +71,85 @@ func Get(channel string) (*PlaylistManager, error) {
 	return pl, nil
 }
 
-func (p *PlaylistManager) quality() string {
-	/*
-		if len(*p.Variant) == 0 {
-			return "", errors.New("there's no stream quality to choose")
-		}
-	*/
+func GetMPL(channel string) (string, error) {
+	p := newPlaylistManager(channel)
+
+	err := p.getToken()
+	if err != nil {
+		return "", err
+	}
+
+	mpl, err := p.getMasterPlaylist()
+	if err != nil {
+		return "", errors.New("failed to generate master playlist")
+	}
+
+	return fmt.Sprintf("%v", mpl), err
+}
+
+func (p *PlaylistManager) updateOutputter() error {
+	p.Outputter = &Outputter{}
+	p.Outputter.Channel = p.ChannelName
+	p.Outputter.Quality = p.Quality
+
 	switch p.Quality {
 	case "best":
-		return (*p.Variant)[0].URL
+		p.Outputter.Resolution = (*p.Variant)[0].Resolution
+		p.Outputter.FrameRate = (*p.Variant)[0].FrameRate
+		p.Outputter.URL = (*p.Variant)[0].URL
 	case "worst":
-		return (*p.Variant)[len(*p.Variant)-2].URL
+		p.Outputter.Resolution = (*p.Variant)[len(*p.Variant)-2].Resolution
+		p.Outputter.FrameRate = (*p.Variant)[len(*p.Variant)-2].FrameRate
+		p.Outputter.URL = (*p.Variant)[len(*p.Variant)-2].URL
 	case "audio":
 		for _, variant := range *p.Variant {
 			if variant.Name == "audio_only" {
-				return variant.URL
+				p.Outputter.Resolution = variant.Resolution
+				p.Outputter.FrameRate = variant.FrameRate
+				p.Outputter.URL = variant.URL
 			}
 		}
 	default:
-		return (*p.Variant)[0].URL
+		p.Outputter.Resolution = (*p.Variant)[0].Resolution
+		p.Outputter.FrameRate = (*p.Variant)[0].FrameRate
+		p.Outputter.URL = (*p.Variant)[0].URL
 	}
-	return ""
+	return nil
 }
 
 func (p *PlaylistManager) AsURL() string {
-	return p.quality()
-}
-
-func (p *PlaylistManager) AsJSON() string {
-	js := struct {
-		Channel    string `json:"channel"`
-		Quality    string `json:"quality"`
-		Resolution string `json:"resolution"`
-		URL        string `json:"url"`
-	}{
-		Channel: p.ChannelName,
-		Quality: p.Quality,
-		URL:     p.quality(),
-	}
-
-	bs, err := json.MarshalIndent(&js, "", "	")
+	err := p.updateOutputter()
 	if err != nil {
-		log.Errorf("couldn't marshal JSON: '%v'", err)
+		return ""
 	}
-	return string(bs)
+	return p.Outputter.URL
 }
 
 func (p *PlaylistManager) AsText() string {
-	return fmt.Sprintf("Channel: %v \nQuality: %v \nResolution: %v \nURL: %v", p.ChannelName, p.Quality, p.Resolution, p.quality())
+	err := p.updateOutputter()
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("Channel: %v \nQuality: %v \nResolution: %v \nFrame Rate: %v \nURL: %v",
+		p.Outputter.Channel,
+		p.Outputter.Quality,
+		p.Outputter.Resolution,
+		p.Outputter.FrameRate,
+		p.Outputter.URL,
+	)
+}
+
+func (p *PlaylistManager) AsJSON() string {
+	err := p.updateOutputter()
+	if err != nil {
+		return ""
+	}
+	bs, err := json.MarshalIndent(&p.Outputter, "", "	")
+	if err != nil {
+		log.Errorf("couldn't marshal JSON: '%v'", err)
+		return ""
+	}
+	return string(bs)
 }
 
 func (p *PlaylistManager) Best() *PlaylistManager {
@@ -125,41 +165,6 @@ func (p *PlaylistManager) Worst() *PlaylistManager {
 func (p *PlaylistManager) Audio() *PlaylistManager {
 	p.Quality = "audio"
 	return p
-}
-
-/*
-func (p *PlaylistManager) Worst() (string, error) {
-	if len(*p.Variant) == 0 {
-		return "", errors.New("there's no stream quality to choose")
-	}
-	return (*p.Variant)[len(*p.Variant)-2].URL, nil
-}
-
-func (p *PlaylistManager) Audio() (string, error) {
-	if len(*p.Variant) == 0 {
-		return "", errors.New("there's no stream quality to choose")
-	}
-	for _, variant := range *p.Variant {
-		if variant.Name == "audio_only" {
-			return variant.URL, nil
-		}
-	}
-	return (*p.Variant)[0].URL, errors.New("failed to find audio_only track")
-}
-*/
-func GetMPL(channel string) (string, error) {
-
-	p := &PlaylistManager{
-		ChannelName: channel,
-	}
-
-	p.getToken()
-	mpl, err := p.getMasterPlaylist()
-	if err != nil {
-		return "", errors.New("failed to generate master playlist")
-	}
-
-	return fmt.Sprintf("%v", mpl), err
 }
 
 func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
@@ -187,22 +192,10 @@ func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
 }
 
 func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
-	pURL, err := url.Parse(fmt.Sprintf(USHER_API_MASK, p.ChannelName))
+	pURL, err := p.getMasterPlaylist()
 	if err != nil {
-		p.Errors = append(p.Errors, err)
-		return p, fmt.Errorf("%v\n", err)
+		return p, fmt.Errorf("failed to get master playlist: %v\n", err)
 	}
-
-	query := pURL.Query()
-
-	query.Set("allow_source", "true")
-	query.Set("fast_bread", "true")
-	query.Set("allow_audio_only", "true")
-	query.Set("sig", p.StreamPlaybackAccessToken.Signature)
-	query.Set("token", p.StreamPlaybackAccessToken.Value)
-	query.Set("player_type", "embed")
-
-	pURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequest("GET", pURL.String(), nil)
 	if err != nil {
@@ -327,6 +320,14 @@ func (p *PlaylistManager) doPostRequestWithRetries(url string, buf bytes.Buffer)
 		return res, err
 	}
 	return res, err
+}
+
+func newPlaylistManager(channel string) *PlaylistManager {
+	return &PlaylistManager{
+		ChannelName: channel,
+		Quality:     "best", // Best by default
+		Outputter:   &Outputter{},
+	}
 }
 
 func recoverFromPanic() {
