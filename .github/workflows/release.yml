@@ -1,6 +1,9 @@
 on: 
+name: release
+on: 
   release:
-    types: [created]
+    types:
+      - created
 
 jobs:
   releases-matrix:
