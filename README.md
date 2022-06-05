@@ -3,7 +3,7 @@
 
 # 🔨 Installation 
 ```console
-go install github.com/wmw9/twitchpl/cmd/twitchpl@latest
+go install github.com/wmw64/twitchpl/cmd/twitchpl@latest
 ```
 
 # Features
@@ -31,7 +31,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wmw9/twitchpl"
+	"github.com/wmw64/twitchpl"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wmw9/twitchpl"
+	"github.com/wmw64/twitchpl"
 )
 
 func main() {
