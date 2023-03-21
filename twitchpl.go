@@ -2,30 +2,33 @@ package twitchpl
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/grafov/m3u8"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
-	CLIENT_ID      = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-	USHER_API_MASK = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
-	GRAPHQL_URL    = "https://gql.twitch.tv/gql"
+	ClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+	UsherAPI = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
+	GraphURL = "https://gql.twitch.tv/gql"
 )
 
 var (
-	Client = &http.Client{Timeout: 2 * time.Second,
+	Client = &http.Client{
+		Timeout: 3 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second},
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
-	USER_AGENT      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0"
+	UserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0"
 	backoffSchedule = []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second}
 )
 
@@ -55,10 +58,10 @@ type QualityVariant struct {
 	URL        string
 }
 
-func Get(channel string) (*PlaylistManager, error) {
+func Get(ctx context.Context, channel string) (*PlaylistManager, error) {
 	p := newPlaylistManager(channel)
 
-	err := p.getToken()
+	err := p.getToken(ctx)
 	if err != nil {
 		return &PlaylistManager{}, err
 	}
@@ -71,10 +74,10 @@ func Get(channel string) (*PlaylistManager, error) {
 	return pl, nil
 }
 
-func GetMPL(channel string) (string, error) {
+func GetMPL(ctx context.Context, channel string) (string, error) {
 	p := newPlaylistManager(channel)
 
-	err := p.getToken()
+	err := p.getToken(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -125,30 +128,18 @@ func (p *PlaylistManager) AsURL() string {
 	return p.Outputter.URL
 }
 
-func (p *PlaylistManager) AsText() string {
-	err := p.updateOutputter()
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf("Channel: %v \nQuality: %v \nResolution: %v \nFrame Rate: %v \nURL: %v",
-		p.Outputter.Channel,
-		p.Outputter.Quality,
-		p.Outputter.Resolution,
-		p.Outputter.FrameRate,
-		p.Outputter.URL,
-	)
-}
-
 func (p *PlaylistManager) AsJSON() string {
 	err := p.updateOutputter()
 	if err != nil {
 		return ""
 	}
-	bs, err := json.MarshalIndent(&p.Outputter, "", "	")
+
+	bs, err := json.Marshal(&p.Outputter)
 	if err != nil {
-		log.Errorf("couldn't marshal JSON: '%v'", err)
+		log.Printf("couldn't marshal JSON: '%v'", err)
 		return ""
 	}
+
 	return string(bs)
 }
 
@@ -168,7 +159,7 @@ func (p *PlaylistManager) Audio() *PlaylistManager {
 }
 
 func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
-	mplURL, err := url.Parse(fmt.Sprintf(USHER_API_MASK, p.ChannelName))
+	mplURL, err := url.Parse(fmt.Sprintf(UsherAPI, p.ChannelName))
 	if err != nil {
 		return mplURL, errors.New("failed to generate master playlist")
 	}
@@ -194,29 +185,29 @@ func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
 func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 	pURL, err := p.getMasterPlaylist()
 	if err != nil {
-		return p, fmt.Errorf("failed to get master playlist: %v\n", err)
+		return p, fmt.Errorf("failed to get master playlist: %w", err)
 	}
 
 	req, err := http.NewRequest("GET", pURL.String(), nil)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
-		return p, fmt.Errorf("failed to create GET request: %v\n", err)
+		return p, fmt.Errorf("failed to create GET request: %w", err)
 	}
 
 	res, err := p.doRequestWithRetries(req)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
-		return p, fmt.Errorf("failed to make GET request: %v\n", err)
+		return p, fmt.Errorf("failed to make GET request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		if res.StatusCode != http.StatusNotFound {
 			p.Errors = append(p.Errors, fmt.Errorf("playlist got http status %s", res.Status))
-			return p, fmt.Errorf("error: %v playlist got http status: %v\n", err, res.Status)
+			return p, fmt.Errorf("error: %w playlist got http status: %v", err, res.Status)
 		}
 		p.Errors = append(p.Errors, errors.New("stream is offline or channel not found"))
-		return p, fmt.Errorf("stream is offline or channel not found\n")
+		return p, fmt.Errorf("stream is offline or channel not found")
 	}
 
 	if res != nil && res.StatusCode != http.StatusOK {
@@ -227,7 +218,7 @@ func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 	playlist, _, err := m3u8.DecodeFrom(res.Body, true)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
-		return p, fmt.Errorf("failed to decode m3u8: %v", err)
+		return p, fmt.Errorf("failed to decode m3u8: %w", err)
 	}
 
 	masterpl := playlist.(*m3u8.MasterPlaylist)
@@ -240,16 +231,15 @@ func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
 			FrameRate:  variant.FrameRate,
 			URL:        variant.URI,
 		})
-
 	}
 
 	p.Variant = &quality
 	return p, nil
 }
 
-func (p *PlaylistManager) getToken() error {
+func (p *PlaylistManager) getToken(ctx context.Context) error {
 	defer recoverFromPanic()
-	u, err := url.Parse(GRAPHQL_URL)
+	u, err := url.Parse(GraphURL)
 	if err != nil {
 		return err
 	}
@@ -260,7 +250,7 @@ func (p *PlaylistManager) getToken() error {
 		return err
 	}
 
-	res, err := p.doPostRequestWithRetries(u.String(), *buf)
+	res, err := p.doPostRequestWithRetries(ctx, u.String(), *buf)
 	if err != nil {
 		return fmt.Errorf("non-200 code returned for graphql request for PlaybackAccessToken: %s", res.Status)
 	}
@@ -285,7 +275,7 @@ func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Respons
 		if err == nil {
 			break
 		}
-		log.Errorf("Request error: '%v' Retrying in %v", err, backoff)
+		log.Printf("Request error: '%v' Retrying in %v", err, backoff)
 		time.Sleep(backoff)
 
 	}
@@ -296,23 +286,23 @@ func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Respons
 }
 
 // doPostRequestWithRetries makes POST request, if failed it retries 3 more times with backoff timer
-func (p *PlaylistManager) doPostRequestWithRetries(url string, buf bytes.Buffer) (*http.Response, error) {
+func (p *PlaylistManager) doPostRequestWithRetries(ctx context.Context, URL string, buf bytes.Buffer) (*http.Response, error) {
 	var err error
 	var res *http.Response
 
 	for _, backoff := range backoffSchedule {
-		req, err := http.NewRequest("POST", url, &buf)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, URL, &buf)
 		if err != nil {
 			return res, err
 		}
-		req.Header.Add("Client-ID", CLIENT_ID)
-		req.Header.Set("User-Agent", USER_AGENT)
+		req.Header.Add("Client-ID", ClientID)
+		req.Header.Set("User-Agent", UserAgent)
 
 		res, err = Client.Do(req)
 		if err == nil {
 			return res, err
 		}
-		log.Errorf("Request error: '%v' Retrying in %v", err, backoff)
+		log.Printf("Request error: '%v' Retrying in %v", err, backoff)
 		time.Sleep(backoff)
 
 	}
@@ -332,6 +322,6 @@ func newPlaylistManager(channel string) *PlaylistManager {
 
 func recoverFromPanic() {
 	if r := recover(); r != nil {
-		fmt.Println("recovered from ", r)
+		log.Println("recovered from ", r)
 	}
 }
