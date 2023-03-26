@@ -19,11 +19,11 @@ type GraphQLQuery struct {
 }
 
 type GraphQLVariables struct {
-	IsLive     bool   `json:"isLive"`
-	IsVod      bool   `json:"isVod"`
 	Login      string `json:"login"`
 	PlayerType string `json:"playerType"`
 	VodID      string `json:"vodID"`
+	IsLive     bool   `json:"isLive"`
+	IsVod      bool   `json:"isVod"`
 }
 
 type PlaybackAccessTokenGraphQLResponse struct {

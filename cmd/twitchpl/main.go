@@ -15,7 +15,7 @@ func main() {
 		os.Exit(3)
 	}
 
-	pl, err := twitchpl.Get(context.Background(), args[0])
+	pl, err := twitchpl.Get(context.Background(), args[0], true)
 	if err != nil {
 		panic(err)
 	}

@@ -17,48 +17,49 @@ import (
 const (
 	ClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 	UsherAPI = "https://usher.ttvnw.net/api/channel/hls/%s.m3u8"
+	TTVAPI   = "https://api.ttv.lol/playlist/%s.m3u8"
 	GraphURL = "https://gql.twitch.tv/gql"
 )
 
 var (
 	Client = &http.Client{
-		Timeout: 3 * time.Second,
+		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 100,
 			IdleConnTimeout:     90 * time.Second,
 		},
 	}
 	UserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0"
-	backoffSchedule = []time.Duration{1 * time.Second, 2 * time.Second, 3 * time.Second}
+	backoffSchedule = []time.Duration{30 * time.Second, 90 * time.Second, 120 * time.Second}
 )
 
 type PlaylistManager struct {
+	StreamPlaybackAccessToken *StreamPlaybackAccessToken
+	Variant                   *[]QualityVariant
+	Outputter                 *Outputter
 	ChannelName               string
 	Quality                   string
 	Resolution                string
 	DesiredVariant            string
-	StreamPlaybackAccessToken *StreamPlaybackAccessToken
-	Variant                   *[]QualityVariant
 	Errors                    []error
-	Outputter                 *Outputter
 }
 
 type Outputter struct {
 	Channel    string  `json:"channel"`
 	Quality    string  `json:"quality"`
 	Resolution string  `json:"resolution"`
-	FrameRate  float64 `json:"frame_rate"`
 	URL        string  `json:"url"`
+	FrameRate  float64 `json:"frame_rate"`
 }
 
 type QualityVariant struct {
 	Name       string
 	Resolution string
-	FrameRate  float64
 	URL        string
+	FrameRate  float64
 }
 
-func Get(ctx context.Context, channel string) (*PlaylistManager, error) {
+func Get(ctx context.Context, channel string, useAdProxy bool) (*PlaylistManager, error) {
 	p := newPlaylistManager(channel)
 
 	err := p.getToken(ctx)
@@ -66,7 +67,7 @@ func Get(ctx context.Context, channel string) (*PlaylistManager, error) {
 		return &PlaylistManager{}, err
 	}
 
-	pl, err := p.getPlaylist()
+	pl, err := p.getPlaylist(useAdProxy)
 	if err != nil {
 		return pl, err
 	}
@@ -74,7 +75,7 @@ func Get(ctx context.Context, channel string) (*PlaylistManager, error) {
 	return pl, nil
 }
 
-func GetMPL(ctx context.Context, channel string) (string, error) {
+func GetMPL(ctx context.Context, channel string, useAdProxy bool) (string, error) {
 	p := newPlaylistManager(channel)
 
 	err := p.getToken(ctx)
@@ -82,7 +83,7 @@ func GetMPL(ctx context.Context, channel string) (string, error) {
 		return "", err
 	}
 
-	mpl, err := p.getMasterPlaylist()
+	mpl, err := p.getMasterPlaylist(useAdProxy)
 	if err != nil {
 		return "", errors.New("failed to generate master playlist")
 	}
@@ -158,40 +159,76 @@ func (p *PlaylistManager) Audio() *PlaylistManager {
 	return p
 }
 
-func (p *PlaylistManager) getMasterPlaylist() (*url.URL, error) {
-	mplURL, err := url.Parse(fmt.Sprintf(UsherAPI, p.ChannelName))
+// generateMasterPlaylistURL generates the master playlist URL
+func (p *PlaylistManager) generateMasterPlaylistURL(useAdProxy bool) (mplURL *url.URL, err error) {
+	var apiURL string
+
+	switch useAdProxy {
+	case true:
+		apiURL = fmt.Sprintf(TTVAPI, p.ChannelName)
+	default:
+		apiURL = fmt.Sprintf(UsherAPI, p.ChannelName)
+	}
+
+	mplURL, err = url.Parse(apiURL)
 	if err != nil {
-		return mplURL, errors.New("failed to generate master playlist")
+		return mplURL, fmt.Errorf("generateMasterPlaylistURL: %w, apiURL: %v", err, apiURL)
+	}
+
+	return mplURL, nil
+}
+
+func (p *PlaylistManager) getMasterPlaylist(useAdProxy bool) (mplURL *url.URL, err error) {
+	mplURL, err = p.generateMasterPlaylistURL(useAdProxy)
+	if err != nil {
+		return mplURL, fmt.Errorf("getMasterPlaylist: %w", err)
 	}
 
 	query := mplURL.Query()
 
 	query.Set("allow_source", "true")
+	query.Set("acmb", "e30=")
+	query.Set("allow_audio_only", "true")
 	query.Set("fast_bread", "true")
-	query.Set("p", "1234567890")
+	query.Set("playlist_include_framerate", "true")
+	query.Set("reassignments_supported", "true")
 	query.Set("player_backend", "mediaplayer")
-	query.Set("sig", p.StreamPlaybackAccessToken.Signature)
 	query.Set("supported_codecs", "vp09,avc1")
-	query.Set("token", p.StreamPlaybackAccessToken.Value)
+	query.Set("p", "1234567890")
+	query.Set("play_session_id", "1b0c77f72af01d4db1f993803dacd90f")
 	query.Set("cdm", "wv")
-	query.Set("player_version", "1.2.0")
+	query.Set("player_version", "1.18.0")
 	query.Set("player_type", "embed")
+	query.Set("sig", p.StreamPlaybackAccessToken.Signature)
+	query.Set("token", p.StreamPlaybackAccessToken.Value)
 
 	mplURL.RawQuery = query.Encode()
 
 	return mplURL, nil
 }
 
-func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
-	pURL, err := p.getMasterPlaylist()
+func (p *PlaylistManager) getPlaylist(useAdProxy bool) (*PlaylistManager, error) {
+	pURL, err := p.getMasterPlaylist(useAdProxy)
 	if err != nil {
 		return p, fmt.Errorf("failed to get master playlist: %w", err)
 	}
 
-	req, err := http.NewRequest("GET", pURL.String(), nil)
+	URL := pURL.String()
+
+	if useAdProxy {
+		path := pURL.Scheme + "://" + pURL.Host + pURL.Path
+		query := "%3F" + pURL.RawQuery // puzzled over this for 2 hours "?" needs to be converted to "%3F"
+		URL = path + query
+	}
+
+	req, err := http.NewRequest(http.MethodGet, URL, http.NoBody)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
 		return p, fmt.Errorf("failed to create GET request: %w", err)
+	}
+
+	if useAdProxy {
+		req.Header.Set("x-donate-to", "https://ttv.lol/donate") // otherwise you get {"message":"sadge"}
 	}
 
 	res, err := p.doRequestWithRetries(req)
@@ -266,10 +303,7 @@ func (p *PlaylistManager) getToken(ctx context.Context) error {
 }
 
 // doRequestWithRetries makes request, if failed it retries 3 more times with backoff timer
-func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (*http.Response, error) {
-	var err error
-	var res *http.Response
-
+func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (res *http.Response, err error) {
 	for _, backoff := range backoffSchedule {
 		res, err = Client.Do(req)
 		if err == nil {
