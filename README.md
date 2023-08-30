@@ -42,7 +42,11 @@ func main() {
 		os.Exit(3)
 	}
 
-	pl, err := twitchpl.Get(context.Background(), args[0])
+	// how to get token
+	// https://streamlink.github.io/cli/plugins/twitch.html
+	token := "turbotoken"
+
+	pl, err := twitchpl.Get(context.Background(), args[0], token)
 	if err != nil {
 		panic(err)
 	}
