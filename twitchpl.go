@@ -59,15 +59,15 @@ type QualityVariant struct {
 	FrameRate  float64
 }
 
-func Get(ctx context.Context, channel string, useAdProxy bool) (*PlaylistManager, error) {
+func Get(ctx context.Context, channel string, token string) (*PlaylistManager, error) {
 	p := newPlaylistManager(channel)
 
-	err := p.getToken(ctx)
+	err := p.getToken(ctx, token)
 	if err != nil {
 		return &PlaylistManager{}, err
 	}
 
-	pl, err := p.getPlaylist(useAdProxy)
+	pl, err := p.getPlaylist()
 	if err != nil {
 		return pl, err
 	}
@@ -75,15 +75,15 @@ func Get(ctx context.Context, channel string, useAdProxy bool) (*PlaylistManager
 	return pl, nil
 }
 
-func GetMPL(ctx context.Context, channel string, useAdProxy bool) (string, error) {
+func GetMPL(ctx context.Context, channel string, token string) (string, error) {
 	p := newPlaylistManager(channel)
 
-	err := p.getToken(ctx)
+	err := p.getToken(ctx, token)
 	if err != nil {
 		return "", err
 	}
 
-	mpl, err := p.getMasterPlaylist(useAdProxy)
+	mpl, err := p.getMasterPlaylist()
 	if err != nil {
 		return "", errors.New("failed to generate master playlist")
 	}
@@ -160,15 +160,8 @@ func (p *PlaylistManager) Audio() *PlaylistManager {
 }
 
 // generateMasterPlaylistURL generates the master playlist URL
-func (p *PlaylistManager) generateMasterPlaylistURL(useAdProxy bool) (mplURL *url.URL, err error) {
-	var apiURL string
-
-	switch useAdProxy {
-	case true:
-		apiURL = fmt.Sprintf(TTVAPI, p.ChannelName)
-	default:
-		apiURL = fmt.Sprintf(UsherAPI, p.ChannelName)
-	}
+func (p *PlaylistManager) generateMasterPlaylistURL() (mplURL *url.URL, err error) {
+	apiURL := fmt.Sprintf(UsherAPI, p.ChannelName)
 
 	mplURL, err = url.Parse(apiURL)
 	if err != nil {
@@ -178,8 +171,8 @@ func (p *PlaylistManager) generateMasterPlaylistURL(useAdProxy bool) (mplURL *ur
 	return mplURL, nil
 }
 
-func (p *PlaylistManager) getMasterPlaylist(useAdProxy bool) (mplURL *url.URL, err error) {
-	mplURL, err = p.generateMasterPlaylistURL(useAdProxy)
+func (p *PlaylistManager) getMasterPlaylist() (mplURL *url.URL, err error) {
+	mplURL, err = p.generateMasterPlaylistURL()
 	if err != nil {
 		return mplURL, fmt.Errorf("getMasterPlaylist: %w", err)
 	}
@@ -207,28 +200,18 @@ func (p *PlaylistManager) getMasterPlaylist(useAdProxy bool) (mplURL *url.URL, e
 	return mplURL, nil
 }
 
-func (p *PlaylistManager) getPlaylist(useAdProxy bool) (*PlaylistManager, error) {
-	pURL, err := p.getMasterPlaylist(useAdProxy)
+func (p *PlaylistManager) getPlaylist() (*PlaylistManager, error) {
+	pURL, err := p.getMasterPlaylist()
 	if err != nil {
 		return p, fmt.Errorf("failed to get master playlist: %w", err)
 	}
 
 	URL := pURL.String()
 
-	if useAdProxy {
-		path := pURL.Scheme + "://" + pURL.Host + pURL.Path
-		query := "%3F" + pURL.RawQuery // puzzled over this for 2 hours "?" needs to be converted to "%3F"
-		URL = path + query
-	}
-
 	req, err := http.NewRequest(http.MethodGet, URL, http.NoBody)
 	if err != nil {
 		p.Errors = append(p.Errors, err)
 		return p, fmt.Errorf("failed to create GET request: %w", err)
-	}
-
-	if useAdProxy {
-		req.Header.Set("x-donate-to", "https://ttv.lol/donate") // otherwise you get {"message":"sadge"}
 	}
 
 	res, err := p.doRequestWithRetries(req)
@@ -274,7 +257,7 @@ func (p *PlaylistManager) getPlaylist(useAdProxy bool) (*PlaylistManager, error)
 	return p, nil
 }
 
-func (p *PlaylistManager) getToken(ctx context.Context) error {
+func (p *PlaylistManager) getToken(ctx context.Context, token string) error {
 	defer recoverFromPanic()
 	u, err := url.Parse(GraphURL)
 	if err != nil {
@@ -287,7 +270,7 @@ func (p *PlaylistManager) getToken(ctx context.Context) error {
 		return err
 	}
 
-	res, err := p.doPostRequestWithRetries(ctx, u.String(), *buf)
+	res, err := p.doPostRequestWithRetries(ctx, u.String(), token, *buf)
 	if err != nil {
 		return fmt.Errorf("non-200 code returned for graphql request for PlaybackAccessToken: %s", res.Status)
 	}
@@ -320,7 +303,7 @@ func (p *PlaylistManager) doRequestWithRetries(req *http.Request) (res *http.Res
 }
 
 // doPostRequestWithRetries makes POST request, if failed it retries 3 more times with backoff timer
-func (p *PlaylistManager) doPostRequestWithRetries(ctx context.Context, URL string, buf bytes.Buffer) (*http.Response, error) {
+func (p *PlaylistManager) doPostRequestWithRetries(ctx context.Context, URL string, token string, buf bytes.Buffer) (*http.Response, error) {
 	var err error
 	var res *http.Response
 
@@ -331,6 +314,7 @@ func (p *PlaylistManager) doPostRequestWithRetries(ctx context.Context, URL stri
 		}
 		req.Header.Add("Client-ID", ClientID)
 		req.Header.Set("User-Agent", UserAgent)
+		req.Header.Set("Authorization", token)
 
 		res, err = Client.Do(req)
 		if err == nil {
